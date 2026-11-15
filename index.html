@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Junior Astronaut Trainer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;800;900&family=Montserrat:wght@600;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    :root {
+      --rbx-bg: rgba(25, 27, 29, 0.88);
+      --rbx-bg-hover: rgba(42, 45, 49, 0.96);
+      --rbx-border: rgba(255, 255, 255, 0.18);
+      --rbx-accent: #00b06f;
+      --rbx-warn: #f59e0b;
+      --rbx-danger: #ef4444;
+      --text-main: #ffffff;
+      --text-muted: #b8c0cc;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%; width: 100%; overflow: hidden;
+      background-color: #060913; color: var(--text-main);
+      font-family: 'Montserrat', 'Cairo', sans-serif;
+    }
+    body.rtl { font-family: 'Cairo', 'Montserrat', sans-serif; }
+    .rbx-topbar {
+      position: fixed; top: 12px; left: 14px; right: 14px; z-index: 60;
+      display: flex; justify-content: space-between; align-items: center;
+      pointer-events: none; gap: 8px; flex-wrap: wrap;
+    }
+    .rbx-group { display: flex; align-items: center; gap: 8px; pointer-events: auto; flex-wrap: wrap; }
+    .rbx-pill {
+      background: var(--rbx-bg); backdrop-filter: blur(10px);
+      border: 1px solid var(--rbx-border); border-radius: 999px;
+      height: 40px; padding: 0 14px; display: flex; align-items: center; gap: 7px;
+      color: #fff; font-weight: 700; font-size: 0.85rem; cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+    .rbx-pill:hover { background: var(--rbx-bg-hover); transform: scale(1.03); }
+    .rbx-circle { width: 40px; padding: 0; justify-content: center; }
+    .rbx-chat-box {
+      position: fixed; top: 62px; left: 14px; width: 350px; max-width: calc(100vw - 28px);
+      background: rgba(20, 22, 25, 0.94); backdrop-filter: blur(12px);
+      border: 1px solid var(--rbx-border); border-radius: 14px; z-index: 55;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    body.rtl .rbx-chat-box { left: auto; right: 14px; }
+    .rbx-chat-box.hidden { display: none; }
+    .chat-header {
+      padding: 8px 12px; font-size: 0.74rem; font-weight: 800; color: #94a3b8;
+      background: rgba(255, 255, 255, 0.05); border-bottom: 1px solid var(--rbx-border);
+      display: flex; justify-content: space-between;
+    }
+    .chat-messages {
+      height: 185px; overflow-y: auto; padding: 10px 12px;
+      display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem; line-height: 1.4;
+    }
+    .chat-msg { background: rgba(255, 255, 255, 0.07); padding: 7px 10px; border-radius: 8px; }
+    .chat-user { font-weight: 800; color: #60a5fa; }
+    .chat-user.capcom { color: #34d399; }
+    .chat-source { display: block; margin-top: 4px; font-size: 0.72rem; font-weight: 700; color: #93c5fd; }
+    .chat-input-row { display: flex; border-top: 1px solid var(--rbx-border); background: rgba(12, 14, 18, 0.96); }
+    .chat-input-row input {
+      flex: 1; background: transparent; border: none; padding: 9px 12px;
+      color: #fff; font-family: inherit; font-size: 0.84rem; outline: none;
+    }
+    .chat-input-row button { background: transparent; border: none; color: #60a5fa; font-weight: 800; padding: 0 14px; cursor: pointer; }
+    .screen-view { position: fixed; inset: 0; display: none; overflow-y: auto; }
+    .screen-view.active { display: flex; }
+
+    /* MAIN MENU */
+    #mainMenuView {
+      flex-direction: column; align-items: center; justify-content: center;
+      padding: 70px 20px 24px; text-align: center; z-index: 10;
+    }
+    .space-canvas { position: fixed; inset: 0; z-index: 0; background: radial-gradient(circle at 50% 45%, #111b33 0%, #060913 78%); }
+    .planet-backdrop { position: absolute; inset: 0; opacity: 0; transition: opacity 0.45s ease; pointer-events: none; }
+    .planet-backdrop.active { opacity: 1; }
+    .planet-backdrop img { width: 100%; height: 100%; object-fit: cover; filter: brightness(0.55); }
+    .main-title {
+      position: relative; z-index: 5; font-family: 'Orbitron', 'Cairo', sans-serif;
+      font-size: clamp(2rem, 5vw, 3.4rem); font-weight: 900; text-transform: uppercase;
+      text-shadow: 0 6px 24px rgba(0, 0, 0, 0.85); margin-bottom: 12px;
+    }
+    .hover-status-pill {
+      position: relative; z-index: 5; margin-bottom: 24px; font-size: 0.9rem; font-weight: 700;
+      background: rgba(25, 27, 29, 0.86); border: 1px solid var(--rbx-border);
+      padding: 7px 18px; border-radius: 999px;
+    }
+    .mission-grid {
+      position: relative; z-index: 5; display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+      gap: 20px; width: 100%; max-width: 650px;
+    }
+    .outpost-btn {
+      background: var(--rbx-bg); backdrop-filter: blur(12px);
+      border: 1.5px solid var(--rbx-border); border-radius: 18px; padding: 18px;
+      color: #fff; cursor: pointer; display: flex; flex-direction: column;
+      align-items: center; gap: 10px; transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .outpost-btn:hover { transform: translateY(-4px) scale(1.02); }
+    .outpost-btn.lunar:hover { border-color: #93c5fd; }
+    .outpost-btn.martian:hover { border-color: #fb923c; }
+    .planet-preview-box {
+      width: 100%; height: 145px; overflow: hidden; border-radius: 12px;
+      position: relative; background: #0b0f19;
+    }
+    .planet-preview-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .planet-preview-tag {
+      position: absolute; bottom: 8px; left: 8px; background: rgba(0, 0, 0, 0.78);
+      padding: 3px 9px; border-radius: 6px; font-size: 0.72rem; font-weight: 700;
+    }
+    .btn-label { font-size: 1.1rem; font-weight: 800; }
+    .btn-meta { font-size: 0.82rem; color: var(--text-muted); font-weight: 600; }
+
+    /* WELCOME OVERLAY */
+    .welcome-overlay {
+      position: fixed; inset: 0; background: rgba(5, 8, 17, 0.84); backdrop-filter: blur(8px);
+      z-index: 70; display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .welcome-overlay.hidden { display: none; }
+    .welcome-card {
+      background: #191b1d; border: 1.5px solid rgba(96, 165, 250, 0.5); border-radius: 20px;
+      padding: 28px 24px; max-width: 450px; width: 100%; text-align: center;
+    }
+    .welcome-title { font-family: 'Orbitron', 'Cairo', sans-serif; font-size: 1.5rem; font-weight: 900; color: #60a5fa; margin-bottom: 12px; }
+    .welcome-sub { color: var(--text-muted); font-size: 0.92rem; line-height: 1.5; margin-bottom: 20px; }
+    .rbx-cta-btn {
+      background: var(--rbx-accent); color: #fff; border: none; border-radius: 12px;
+      padding: 12px 24px; font-family: inherit; font-size: 0.95rem; font-weight: 800; cursor: pointer;
+    }
+    .rbx-secondary-btn {
+      background: rgba(255, 255, 255, 0.12); color: #fff; border: 1px solid var(--rbx-border);
+      border-radius: 12px; padding: 11px 20px; font-family: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer;
+    }
+
+    /* SUIT PREPARATION SCREEN WITH REAL NASA SUIT PHOTOS */
+    #suitPrepView { z-index: 20; background: radial-gradient(circle at 50% 20%, #16213e 0%, #090d16 80%); flex-direction: column; align-items: center; padding: 72px 20px 30px; }
+    .prep-container { width: 100%; max-width: 980px; display: flex; flex-direction: column; gap: 16px; }
+    .prep-title { font-family: 'Orbitron', 'Cairo', sans-serif; font-size: clamp(1.35rem, 3vw, 2rem); font-weight: 900; text-align: center; }
+    .name-input-card { background: var(--rbx-bg); border: 1px solid var(--rbx-border); border-radius: 14px; padding: 12px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .name-input-card input { flex: 1; min-width: 200px; background: rgba(10, 12, 16, 0.9); border: 1.5px solid rgba(96, 165, 250, 0.45); border-radius: 10px; padding: 9px 12px; color: #fff; font-family: inherit; font-weight: 700; outline: none; }
+    .suits-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(275px, 1fr)); gap: 14px; }
+    .suit-card { background: var(--rbx-bg); border: 2px solid var(--rbx-border); border-radius: 16px; padding: 14px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; transition: transform 0.15s ease; }
+    .suit-card:hover { transform: translateY(-2px); }
+    .suit-card.selected { border-color: var(--rbx-accent); box-shadow: 0 0 22px rgba(0, 176, 111, 0.35); background: rgba(30, 36, 40, 0.96); }
+    .suit-visual-box { width: 100%; height: 175px; background: #0c1220; border-radius: 10px; overflow: hidden; position: relative; }
+    .suit-visual-box img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
+    .nasa-suit-tag { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.82); color: #93c5fd; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; }
+    .suit-name { font-size: 1rem; font-weight: 800; }
+    .suit-desc { font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; }
+    .stat-badge { background: rgba(255,255,255,0.08); padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 800; color: #34d399; display: inline-block; margin-right: 5px; }
+
+    /* 3D OUTPOST GAMEPLAY */
+    #gameplayView { z-index: 30; overflow: hidden; }
+    #threeContainer { position: fixed; inset: 0; z-index: 1; }
+    .game-hud-top { position: fixed; top: 62px; left: 14px; right: 14px; z-index: 35; display: flex; gap: 8px; flex-wrap: wrap; pointer-events: none; }
+    .telem-card { background: var(--rbx-bg); backdrop-filter: blur(10px); border: 1px solid var(--rbx-border); border-radius: 12px; padding: 6px 12px; min-width: 98px; }
+    .telem-label { font-size: 0.66rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; }
+    .telem-val { font-size: 0.95rem; font-weight: 900; margin-top: 2px; }
+
+    /* HOVER / PROXIMITY REAL NASA SYSTEM CARD WITH REAL PHOTO */
+    .station-info-card {
+      position: fixed; bottom: 82px; left: 14px; width: 355px; max-width: calc(100vw - 28px);
+      background: rgba(20, 23, 27, 0.95); border: 1.5px solid rgba(96, 165, 250, 0.6);
+      border-radius: 16px; padding: 14px; z-index: 40; display: none; flex-direction: column; gap: 9px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.7);
+    }
+    body.rtl .station-info-card { left: auto; right: 14px; }
+    .station-info-card.visible { display: flex; }
+    .station-photo-wrap { width: 100%; height: 130px; border-radius: 10px; overflow: hidden; background: #0d1322; position: relative; }
+    .station-photo-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .station-photo-caption { position: absolute; bottom: 6px; left: 6px; background: rgba(0,0,0,0.78); color: #34d399; font-size: 0.68rem; font-weight: 800; padding: 2px 8px; border-radius: 5px; }
+
+    /* VISUALIZED CHALLENGE & CONSEQUENCE CONSOLE */
+    .challenge-panel {
+      position: fixed; top: 50%; right: 16px; transform: translateY(-50%);
+      width: 400px; max-width: calc(100vw - 32px); background: rgba(20, 22, 26, 0.96);
+      border: 2px solid var(--rbx-warn); border-radius: 18px; padding: 15px; z-index: 45;
+      display: none; flex-direction: column; gap: 9px; box-shadow: 0 16px 45px rgba(0,0,0,0.8);
+    }
+    body.rtl .challenge-panel { right: auto; left: 16px; }
+    .challenge-panel.visible { display: flex; }
+    .hazard-visualizer-box {
+      width: 100%; height: 115px; border-radius: 10px; overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.15); background: #070b14; position: relative;
+    }
+    .hazard-visualizer-box canvas { width: 100%; height: 100%; display: block; }
+    .hazard-live-tag {
+      position: absolute; top: 6px; left: 8px; background: rgba(239, 68, 68, 0.85);
+      color: #fff; font-size: 0.66rem; font-weight: 900; padding: 2px 7px; border-radius: 4px;
+    }
+    .decision-btn {
+      background: rgba(255, 255, 255, 0.07); border: 1px solid var(--rbx-border);
+      border-radius: 11px; padding: 9px 11px; color: #fff; text-align: left; cursor: pointer;
+    }
+    body.rtl .decision-btn { text-align: right; }
+    .decision-btn:hover { background: rgba(59, 130, 246, 0.24); border-color: #60a5fa; }
+
+    .consequence-card {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 440px; max-width: calc(100vw - 32px); background: #191b1d;
+      border: 2px solid #60a5fa; border-radius: 18px; padding: 18px; z-index: 50;
+      display: none; flex-direction: column; gap: 11px; text-align: center;
+      box-shadow: 0 22px 55px rgba(0,0,0,0.85);
+    }
+    .consequence-card.visible { display: flex; }
+    .consequence-vis-box { width: 100%; height: 125px; border-radius: 10px; overflow: hidden; background: #080d18; border: 1px solid rgba(255,255,255,0.15); }
+    .consequence-vis-box canvas { width: 100%; height: 100%; display: block; }
+
+    .game-bottom-bar { position: fixed; bottom: 14px; left: 14px; right: 14px; z-index: 35; display: flex; justify-content: space-between; align-items: center; pointer-events: none; gap: 8px; flex-wrap: wrap; }
+    .controls-hint { background: var(--rbx-bg); border: 1px solid var(--rbx-border); padding: 7px 14px; border-radius: 999px; font-size: 0.76rem; font-weight: 700; pointer-events: auto; }
+    .trigger-challenge-btn { background: var(--rbx-warn); color: #111827; border: none; border-radius: 999px; padding: 9px 16px; font-family: inherit; font-size: 0.84rem; font-weight: 900; cursor: pointer; pointer-events: auto; }
+
+    #outcomeView { z-index: 65; background: rgba(6, 9, 19, 0.94); flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+    .outcome-card { background: #191b1d; border: 2px solid var(--rbx-accent); border-radius: 20px; padding: 26px; max-width: 520px; width: 100%; text-align: center; display: flex; flex-direction: column; gap: 12px; }
+    .outcome-card.failed { border-color: var(--rbx-danger); }
+    .outcome-log { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 12px; text-align: left; font-size: 0.8rem; max-height: 170px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  </style>
+</head>
+<body>
+  <header class="rbx-topbar">
+    <div class="rbx-group">
+      <button class="rbx-pill rbx-circle" id="homeBtn" title="Main Menu">&#127968;</button>
+      <button class="rbx-pill" id="chatToggleBtn"><span>&#128172;</span><span data-i18n="chatBtn">Space AI Chat</span></button>
+      <div class="rbx-pill" id="cadetBadgePill" style="display:none;cursor:default;"><span>&#128104;&#8205;&#128640;</span><span id="hudCadetName">Cadet</span></div>
+    </div>
+    <div class="rbx-group">
+      <button class="rbx-pill" id="langToggleBtn"><span>&#127760;</span><span id="langLabel">العربية</span></button>
+    </div>
+  </header>
+
+  <aside class="rbx-chat-box hidden" id="chatBox">
+    <div class="chat-header"><span data-i18n="chatChannel">NASA CAPCOM - SPACE BOT</span><span style="color:#34d399;">&#9679; ONLINE</span></div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-msg"><span class="chat-user capcom">[NASA CAPCOM]: </span><span data-i18n="chatWelcome">Ask me any space question (gravity, water, oxygen, radiation, Artemis, Mars, suits...) and I'll answer with official NASA sources!</span></div>
+    </div>
+    <form class="chat-input-row" id="chatForm">
+      <input type="text" id="chatInput" placeholder="Ask any space question..." autocomplete="off" />
+      <button type="submit" data-i18n="sendBtn">Send</button>
+    </form>
+  </aside>
+
+  <div class="welcome-overlay" id="welcomeModal">
+    <div class="welcome-card">
+      <div class="welcome-title" data-i18n="welcomeTitle">Welcome, Future Astronaut!</div>
+      <p class="welcome-sub" data-i18n="welcomeSub">Prepare to train with real NASA planetary telemetry. Select an outpost destination to begin your mission certification.</p>
+      <button class="rbx-cta-btn" id="enterMenuBtn" data-i18n="startBtn">Enter Mission Control</button>
+    </div>
+  </div>
+
+  <!-- MAIN MENU WITH REAL NASA MOON & MARS IMAGERY -->
+  <section id="mainMenuView" class="screen-view active">
+    <div class="space-canvas">
+      <div id="moon-bg" class="planet-backdrop"><img id="moonBgImg" alt="NASA Moon Surface" /></div>
+      <div id="mars-bg" class="planet-backdrop"><img id="marsBgImg" alt="NASA Mars Surface" /></div>
+    </div>
+    <h1 class="main-title" data-i18n="gameTitle">Junior Astronaut Trainer</h1>
+    <div class="hover-status-pill" id="hoverHint" data-i18n="hoverDefault">Hover or touch an outpost button to preview the planetary surface</div>
+    <div class="mission-grid">
+      <button class="outpost-btn lunar" id="lunarBtn">
+        <div class="planet-preview-box"><img id="moonCardImg" alt="NASA Lunar South Pole" /><span class="planet-preview-tag" data-i18n="nasaMoonTag">NASA Apollo / LRO • Lunar Surface</span></div>
+        <span class="btn-label" data-i18n="lunarBtn">Launch a Lunar Outpost</span>
+        <span class="btn-meta" data-i18n="lunarMeta">Gravity: 1.62 m/s² • Artemis Sector</span>
+      </button>
+      <button class="outpost-btn martian" id="marsBtn">
+        <div class="planet-preview-box"><img id="marsCardImg" alt="NASA Mars Jezero Crater" /><span class="planet-preview-tag" data-i18n="nasaMarsTag">NASA Perseverance • Jezero Crater</span></div>
+        <span class="btn-label" data-i18n="marsBtn">Launch a Martian Outpost</span>
+        <span class="btn-meta" data-i18n="marsMeta">Gravity: 3.72 m/s² • Jezero Crater</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- SUIT SELECTION WITH REAL NASA SPACESUIT PHOTOGRAPHS -->
+  <section id="suitPrepView" class="screen-view">
+    <div class="prep-container">
+      <h2 class="prep-title" id="prepDestinationTitle">Lunar Outpost — Crew Preparation</h2>
+      <div class="name-input-card">
+        <label for="astronautNameInput" style="font-weight:800;color:#93c5fd;" data-i18n="nameLabel">Astronaut Callsign / Name:</label>
+        <input type="text" id="astronautNameInput" placeholder="e.g., Cadet Alex" maxlength="18" />
+      </div>
+      <div class="suits-grid">
+        <div class="suit-card selected" data-suit="axemu">
+          <div class="suit-visual-box"><img id="suitImgAxemu" alt="NASA Artemis AxEMU Spacesuit" /><span class="nasa-suit-tag">NASA Artemis • AxEMU</span></div>
+          <div class="suit-name" data-i18n="suit1Name">Artemis xEMU / AxEMU Lunar Suit</div>
+          <p class="suit-desc" data-i18n="suit1Desc">Engineered by NASA & Axiom for the Lunar South Pole. Dust-repellent white outer layer and high-flexibility bearings.</p>
+          <div><span class="stat-badge" data-i18n="suit1Stat1">+15% Oxygen Reserve</span></div>
+        </div>
+        <div class="suit-card" data-suit="z2">
+          <div class="suit-visual-box"><img id="suitImgZ2" alt="NASA Z-2 Planetary Spacesuit" /><span class="nasa-suit-tag">NASA JSC • Z-2 Prototype</span></div>
+          <div class="suit-name" data-i18n="suit2Name">NASA Z-2 Planetary Surface Suit</div>
+          <p class="suit-desc" data-i18n="suit2Desc">Hard composite upper torso and electroluminescent piping for low-visibility dust storms and heavy radiation shielding.</p>
+          <div><span class="stat-badge" data-i18n="suit2Stat1">+20% Radiation Shield</span></div>
+        </div>
+        <div class="suit-card" data-suit="orion">
+          <div class="suit-visual-box"><img id="suitImgOrion" alt="NASA Orion Crew Survival Suit" /><span class="nasa-suit-tag">NASA Orion • OCSS</span></div>
+          <div class="suit-name" data-i18n="suit3Name">Orion Crew Survival System (OCSS)</div>
+          <p class="suit-desc" data-i18n="suit3Desc">High-visibility international orange pressure suit built for rapid emergency EVA response and lightweight agility.</p>
+          <div><span class="stat-badge" data-i18n="suit3Stat1">+25% Jump & Speed</span></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;gap:12px;">
+        <button class="rbx-secondary-btn" id="backToMenuBtn" data-i18n="backBtn">Back to Menu</button>
+        <button class="rbx-cta-btn" id="confirmLaunchBtn" data-i18n="launchMissionBtn">Launch to Surface &#128640;</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3D OUTPOST GAMEPLAY -->
+  <section id="gameplayView" class="screen-view">
+    <div id="threeContainer"></div>
+    <div class="game-hud-top">
+      <div class="telem-card"><div class="telem-label" data-i18n="hudOxygen">Oxygen (O₂)</div><div class="telem-val" id="valOxygen" style="color:#34d399;">100%</div></div>
+      <div class="telem-card"><div class="telem-label" data-i18n="hudPower">Power Grid</div><div class="telem-val" id="valPower" style="color:#60a5fa;">100%</div></div>
+      <div class="telem-card"><div class="telem-label" data-i18n="hudShield">Base Integrity</div><div class="telem-val" id="valIntegrity" style="color:#fbbf24;">100%</div></div>
+      <div class="telem-card"><div class="telem-label" data-i18n="hudGravity">Gravity</div><div class="telem-val" id="valGravity">1.62 m/s²</div></div>
+      <div class="telem-card"><div class="telem-label" data-i18n="hudChallenge">Challenge</div><div class="telem-val" id="valProgress">1 / 3</div></div>
+    </div>
+
+    <!-- HOVER / PROXIMITY REAL NASA SYSTEM CARD WITH REAL PHOTO -->
+    <div class="station-info-card" id="stationInfoCard">
+      <div class="station-photo-wrap">
+        <img id="stationRealPhoto" alt="NASA Real Outpost Hardware" />
+        <span class="station-photo-caption" data-i18n="irlTag">NASA REAL-WORLD HARDWARE</span>
+      </div>
+      <div id="stationTitle" style="font-size:0.98rem;font-weight:800;color:#60a5fa;">Habitat Dome</div>
+      <div id="stationBody" style="font-size:0.8rem;color:#e2e8f0;line-height:1.45;"></div>
+    </div>
+
+    <!-- VISUALIZED CHALLENGE CONSOLE -->
+    <div class="challenge-panel" id="challengePanel">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span id="challengeAlertBadge" style="background:rgba(245,158,11,0.2);color:#fbbf24;padding:3px 10px;border-radius:999px;font-size:0.72rem;font-weight:800;">ALERT</span>
+      </div>
+      <div class="hazard-visualizer-box">
+        <canvas id="hazardVisCanvas" width="370" height="115"></canvas>
+        <span class="hazard-live-tag" data-i18n="liveSimTag">LIVE HAZARD SIMULATION</span>
+      </div>
+      <div id="challengeTitle" style="font-size:1.02rem;font-weight:900;"></div>
+      <div id="challengeDesc" style="font-size:0.8rem;color:#b8c0cc;line-height:1.4;"></div>
+      <div id="decisionList" style="display:flex;flex-direction:column;gap:7px;"></div>
+    </div>
+
+    <!-- VISUALIZED DECISION CONSEQUENCE MODAL -->
+    <div class="consequence-card" id="consequenceCard">
+      <div style="font-size:1.18rem;font-weight:900;color:#60a5fa;" data-i18n="consequenceHeader">Decision Consequence</div>
+      <div class="consequence-vis-box">
+        <canvas id="consequenceVisCanvas" width="400" height="125"></canvas>
+      </div>
+      <p id="consequenceText" style="font-size:0.86rem;line-height:1.48;color:#e2e8f0;"></p>
+      <div id="consequenceDelta" style="font-weight:800;font-size:0.84rem;color:#fbbf24;"></div>
+      <button class="rbx-cta-btn" id="nextChallengeBtn" data-i18n="continueBtn">Continue Mission</button>
+    </div>
+
+    <div class="game-bottom-bar">
+      <div class="controls-hint" data-i18n="controlsHint">WASD / Arrows: Move • Space: Jump • Hover or Walk Near Base Modules to Inspect</div>
+      <button class="trigger-challenge-btn" id="toggleChallengeBtn" data-i18n="openAlertBtn">&#9888; View Active Challenge</button>
+    </div>
+  </section>
+
+  <!-- MISSION OUTCOME -->
+  <section id="outcomeView" class="screen-view">
+    <div class="outcome-card" id="outcomeCard">
+      <div id="outcomeTitle" style="font-family:'Orbitron','Cairo',sans-serif;font-size:1.8rem;font-weight:900;">MISSION SUCCEEDED!</div>
+      <p id="outcomeSummary" style="color:var(--text-muted);font-size:0.92rem;line-height:1.5;"></p>
+      <div class="outcome-log" id="outcomeLog"></div>
+      <button class="rbx-cta-btn" id="playAgainBtn" data-i18n="playAgainBtn">Return to Outpost Selection</button>
+    </div>
+  </section>
+<script>
+    let currentLang = 'en', selectedDestination = 'moon', selectedSuit = 'axemu', astronautName = 'Cadet';
+    let stats = { oxygen: 100, power: 100, integrity: 100 }, currentChallengeIdx = 0, decisionHistory = [], activeChallengeOpen = false;
+
+    // Pre-loaded Official NASA / Wikimedia Imagery + Offline Fallback Data URLs
+    const NASA_IMAGES = {
+      moon: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Aldrin_Apollo_11_original.jpg/800px-Aldrin_Apollo_11_original.jpg",
+      mars: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dc/PIA24428-MarsPerseveranceRover-FirstColorImage-20210218.jpg/800px-PIA24428-MarsPerseveranceRover-FirstColorImage-20210218.jpg",
+      suitAxemu: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Artemis_Generation_Spacesuits_%28NHQ201910150013%29.jpg/640px-Artemis_Generation_Spacesuits_%28NHQ201910150013%29.jpg",
+      suitZ2: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/NASA_Z-2_prototype_spacesuit.jpg/640px-NASA_Z-2_prototype_spacesuit.jpg",
+      suitOrion: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Orion_Crew_Survival_System_suit_testing.jpg/640px-Orion_Crew_Survival_System_suit_testing.jpg",
+      moonHab: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Artemis_Base_Camp_concept.jpg/640px-Artemis_Base_Camp_concept.jpg",
+      moonSolar: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Vertical_Solar_Array_Technology_%28VSAT%29.jpg/640px-Vertical_Solar_Array_Technology_%28VSAT%29.jpg",
+      moonDrill: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/VIPER_lunar_rover_illustration.jpg/640px-VIPER_lunar_rover_illustration.jpg",
+      moonShelter: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Lunar_Surface_Habitat_concept.jpg/640px-Lunar_Surface_Habitat_concept.jpg",
+      marsHab: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/CHAPEA_Mars_Dune_Alpha_habitat.jpg/640px-CHAPEA_Mars_Dune_Alpha_habitat.jpg",
+      marsMoxie: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/PIA23764-Mars2020Rover-MOXIE-20200326.jpg/640px-PIA23764-Mars2020Rover-MOXIE-20200326.jpg",
+      marsPower: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Kilopower_reactor_concept.jpg/640px-Kilopower_reactor_concept.jpg",
+      marsVeggie: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/ISS-44_Veggie_plant_growth_system.jpg/640px-ISS-44_Veggie_plant_growth_system.jpg"
+    };
+
+    function makeFallbackArtwork(label, bg1, bg2) {
+      const c = document.createElement('canvas'); c.width = 480; c.height = 270;
+      const ctx = c.getContext('2d');
+      const g = ctx.createLinearGradient(0, 0, 480, 270); g.addColorStop(0, bg1); g.addColorStop(1, bg2);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, 480, 270);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'bold 20px Montserrat, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(label, 240, 140);
+      return c.toDataURL();
+    }
+
+    function bindRealImage(imgEl, url, fallbackLabel, c1, c2) {
+      if (!imgEl) return;
+      imgEl.onerror = () => { imgEl.onerror = null; imgEl.src = makeFallbackArtwork(fallbackLabel, c1, c2); };
+      imgEl.src = url;
+    }
+
+    // Set all pre-loaded NASA photos immediately
+    bindRealImage(document.getElementById('moonBgImg'), NASA_IMAGES.moon, 'NASA Lunar Surface', '#4b5563', '#111827');
+    bindRealImage(document.getElementById('moonCardImg'), NASA_IMAGES.moon, 'NASA Lunar Surface', '#4b5563', '#111827');
+    bindRealImage(document.getElementById('marsBgImg'), NASA_IMAGES.mars, 'NASA Mars Jezero Crater', '#b84624', '#3b1208');
+    bindRealImage(document.getElementById('marsCardImg'), NASA_IMAGES.mars, 'NASA Mars Jezero Crater', '#b84624', '#3b1208');
+    bindRealImage(document.getElementById('suitImgAxemu'), NASA_IMAGES.suitAxemu, 'NASA Artemis AxEMU Suit', '#1e293b', '#0f172a');
+    bindRealImage(document.getElementById('suitImgZ2'), NASA_IMAGES.suitZ2, 'NASA Z-2 Mars Suit', '#1e3a8a', '#0f172a');
+    bindRealImage(document.getElementById('suitImgOrion'), NASA_IMAGES.suitOrion, 'NASA Orion OCSS Suit', '#9a3412', '#1c1917');
+
+    const translations = {
+      en: {
+        langToggle: "العربية", chatBtn: "Space AI Chat", chatChannel: "NASA CAPCOM - SPACE BOT",
+        chatPlaceholder: "Ask any space question...", sendBtn: "Send",
+        chatWelcome: "Ask me any space question (gravity, water, oxygen, radiation, Artemis, Mars, suits...) and I'll answer with official NASA sources!",
+        welcomeTitle: "Welcome, Future Astronaut!",
+        welcomeSub: "Prepare to train with real NASA planetary telemetry. Select an outpost destination to begin your mission certification.",
+        startBtn: "Enter Mission Control",
+        gameTitle: "Junior Astronaut Trainer", hoverDefault: "Hover or touch an outpost button to preview the planetary surface",
+        hoverMoon: "Previewing Lunar South Pole • Gravity: 1.62 m/s² (1/6th Earth)",
+        hoverMars: "Previewing Martian Surface • Gravity: 3.72 m/s² • Thin CO₂ Atmosphere",
+        nasaMoonTag: "NASA Apollo / LRO • Lunar Surface", nasaMarsTag: "NASA Perseverance • Jezero Crater",
+        lunarBtn: "Launch a Lunar Outpost", lunarMeta: "Gravity: 1.62 m/s² • Artemis Sector",
+        marsBtn: "Launch a Martian Outpost", marsMeta: "Gravity: 3.72 m/s² • Jezero Crater",
+        prepMoonTitle: "Lunar Outpost — Crew & Suit Preparation", prepMarsTitle: "Martian Outpost — Crew & Suit Preparation",
+        nameLabel: "Astronaut Callsign / Name:", suit1Name: "Artemis xEMU / AxEMU Lunar Suit",
+        suit1Desc: "Engineered by NASA & Axiom for the Lunar South Pole. Dust-repellent white outer layer and high-flexibility bearings.",
+        suit1Stat1: "+15% Oxygen Reserve", suit2Name: "NASA Z-2 Planetary Surface Suit",
+        suit2Desc: "Hard composite upper torso and electroluminescent piping for low-visibility dust storms and heavy radiation shielding.",
+        suit2Stat1: "+20% Radiation Shield", suit3Name: "Orion Crew Survival System (OCSS)",
+        suit3Desc: "High-visibility international orange pressure suit built for rapid emergency EVA response and lightweight agility.",
+        suit3Stat1: "+25% Jump & Speed", backBtn: "Back to Menu", launchMissionBtn: "Launch to Surface",
+        hudOxygen: "Oxygen (O₂)", hudPower: "Power Grid", hudShield: "Base Integrity", hudGravity: "Gravity", hudChallenge: "Challenge",
+        irlTag: "NASA REAL-WORLD HARDWARE", liveSimTag: "LIVE HAZARD SIMULATION",
+        consequenceHeader: "Decision Consequence", continueBtn: "Continue Mission",
+        controlsHint: "WASD / Arrows: Move • Space: Jump • Hover or Walk Near Base Modules to Inspect",
+        openAlertBtn: "View Active Challenge", playAgainBtn: "Return to Outpost Selection",
+        missionSuccess: "MISSION SUCCEEDED!", missionFailed: "MISSION FAILED!"
+      },
+      ar: {
+        langToggle: "English", chatBtn: "مساعد الفضاء", chatChannel: "ناسا كابكوم - روبوت الفضاء",
+        chatPlaceholder: "اسأل أي سؤال عن الفضاء...", sendBtn: "إرسال",
+        chatWelcome: "اسألني أي سؤال عن الفضاء (الجاذبية، الماء، الأكسجين، الإشعاع، أرتميس، المريخ، البدلات...) وسأجيبك مع مصادر ناسا الرسمية!",
+        welcomeTitle: "أهلاً بك يا رائد فضاء المستقبل!",
+        welcomeSub: "استعد للتدريب باستخدام بيانات ناسا الكوكبية الحقيقية. اختر وجهتك لبدء تأهيلك الفضائي.",
+        startBtn: "دخول مركز القيادة",
+        gameTitle: "مدرب رائد الفضاء الصغير", hoverDefault: "مرر المؤشر أو المس أحد الأزرار لمعاينة سطح الكوكب",
+        hoverMoon: "معاينة القطب الجنوبي للقمر • الجاذبية 1.62 م/ث²",
+        hoverMars: "معاينة سطح المريخ • الجاذبية 3.72 م/ث²",
+        nasaMoonTag: "صور ناسا • سطح القمر", nasaMarsTag: "صور ناسا • فوهة جيزيرو بالمريخ",
+        lunarBtn: "إطلاق قاعدة قمرية", lunarMeta: "الجاذبية: 1.62 م/ث² • قطاع أرتميس",
+        marsBtn: "إطلاق قاعدة مريخية", marsMeta: "الجاذبية: 3.72 م/ث² • فوهة جيزيرو",
+        prepMoonTitle: "القاعدة القمرية — تجهيز الطاقم والبدلة", prepMarsTitle: "القاعدة المريخية — تجهيز الطاقم والبدلة",
+        nameLabel: "اسم رائد الفضاء:", suit1Name: "بدلة أرتميس القمرية (NASA AxEMU)",
+        suit1Desc: "صممتها ناسا وأكسيوم للقطب الجنوبي للقمر بطبقة بيضاء طاردة للغبار القمري الحاد ومفاصل مرنة.",
+        suit1Stat1: "+15% مخزون الأكسجين", suit2Name: "بدلة السطح الكوكبي (NASA Z-2)",
+        suit2Desc: "هيكل علوي صلب وإضاءة مدمجة للرؤية وسط العواصف الترابية وحماية عالية من الإشعاع.",
+        suit2Stat1: "+20% درع الإشعاع", suit3Name: "بدلة نجاة طاقم أوريون (NASA OCSS)",
+        suit3Desc: "بدلة ضغط برتقالية عالية الوضوح للاستجابة السريعة للطوارئ بمرونة وخفة حركة.",
+        suit3Stat1: "+25% سرعة وقفز", backBtn: "العودة للقائمة", launchMissionBtn: "الانطلاق إلى السطح",
+        hudOxygen: "الأكسجين (O₂)", hudPower: "شبكة الطاقة", hudShield: "سلامة القاعدة", hudGravity: "الجاذبية", hudChallenge: "التحدي",
+        irlTag: "معدات حقيقية من وكالة ناسا", liveSimTag: "محاكاة حية للخطر",
+        consequenceHeader: "نتيجة القرار", continueBtn: "متابعة المهمة",
+        controlsHint: "WASD / الأسهم: حركة • مسافة: قفز • مرر المؤشر أو اقترب من مباني القاعدة لفحصها",
+        openAlertBtn: "عرض التحدي النشط", playAgainBtn: "العودة لاختيار الكوكب",
+        missionSuccess: "نجحت المهمة بامتياز!", missionFailed: "فشلت المهمة!"
+      }
+    };
+
+    const spaceKB = [
+      { keys: ['gravity', 'jump', 'weight', 'جاذبية', 'وزن'], en: "Moon gravity is 1.62 m/s² (1/6th Earth); Mars gravity is 3.72 m/s² (38% Earth).", ar: "جاذبية القمر 1.62 م/ث² (سدس الأرض) والمريخ 3.72 م/ث² (38% من الأرض).", src: "NASA Planetary Fact Sheets" },
+      { keys: ['water', 'ice', 'ماء', 'جليد'], en: "NASA's LRO confirmed water ice in shadowed Lunar South Pole craters; Mars holds vast subsurface ice.", ar: "أكد مرصد ناسا LRO وجود جليد مائي في فوهات القطب الجنوبي للقمر ويحتوي المريخ على جليد تحت السطح.", src: "NASA LRO & MRO Missions" },
+      { keys: ['oxygen', 'air', 'moxie', 'أكسجين', 'هواء'], en: "NASA's MOXIE on Perseverance converts Mars's 95% CO₂ atmosphere into breathable oxygen.", ar: "يقوم جهاز MOXIE من ناسا بتحويل غلاف المريخ المكون من CO₂ إلى أكسجين للتنفس.", src: "NASA Mars 2020 Perseverance" },
+      { keys: ['radiation', 'solar', 'flare', 'إشعاع', 'عاصفة'], en: "Astronauts use regolith shielding, water walls, and NASA DONKI alerts against solar flares.", ar: "يستخدم رواد الفضاء دروع التربة الكوكبية وجدران المياه وتنبيهات ناسا DONKI ضد العواصف الشمسية.", src: "NASA Space Weather Database (DONKI)" }
+    ];
+
+    document.getElementById('chatForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const inp = document.getElementById('chatInput'), txt = inp.value.trim(); if (!txt) return;
+      const box = document.getElementById('chatMessages');
+      box.innerHTML += '<div class="chat-msg"><span class="chat-user">' + (currentLang === 'ar' ? '[المتدرب]: ' : '[Cadet]: ') + '</span>' + txt + '</div>';
+      inp.value = '';
+      const q = txt.toLowerCase();
+      const hit = spaceKB.find(i => i.keys.some(k => q.includes(k)));
+      const ans = hit ? (currentLang === 'ar' ? hit.ar : hit.en) : (currentLang === 'ar' ? 'تعتمد ناسا على أنظمة دعم الحياة المغلقة ودروع الإشعاع. اسألني عن الجاذبية أو الأكسجين أو الماء أو الإشعاع!' : 'NASA relies on closed-loop life support and regolith shielding. Ask me about gravity, oxygen, water, or radiation!');
+      const src = hit ? hit.src : 'NASA Open Data Portal (data.nasa.gov)';
+      box.innerHTML += '<div class="chat-msg"><span class="chat-user capcom">[NASA CAPCOM]: </span>' + ans + '<span class="chat-source">Resource: ' + src + '</span></div>';
+      box.scrollTop = box.scrollHeight;
+    });
+
+    const outpostModulesData = {
+      moon: [
+        { photo: NASA_IMAGES.moonHab, color: 0xe2e8f0, x: -7, z: -6, titleEn: "Artemis Pressurized Habitat Dome", titleAr: "قبة المعيشة المضغوطة (أرتميس)", descEn: "NASA's Artemis Base Camp uses pressurized modules covered with lunar regolith bags to protect against -130°C nights and micrometeorites.", descAr: "يستخدم معسكر أرتميس وحدات مضغوطة مغطاة بأكياس من تربة القمر للحماية من برودة الليل (-130° مئوية) والنيازك الدقيقة." },
+        { photo: NASA_IMAGES.moonSolar, color: 0x3b82f6, x: 8, z: -6, titleEn: "Vertical Solar Array (VSAT)", titleAr: "مصفوفة الطاقة الشمسية العمودية", descEn: "At the Lunar South Pole, the Sun stays low on the horizon. NASA's VSAT towers extend 10+ meters high and rotate to track sunlight.", descAr: "في القطب الجنوبي للقمر تبقى الشمس منخفضة؛ لذا تطور ناسا أبراجاً شمسية عمودية ترتفع لأكثر من 10 أمتار." },
+        { photo: NASA_IMAGES.moonDrill, color: 0x10b981, x: -7, z: 7, titleEn: "Lunar Water-Ice ISRU Extractor", titleAr: "وحدة استخلاص الجليد المائي", descEn: "NASA's VIPER & PRIME-1 missions drill into shadowed craters to harvest water ice for breathable oxygen and rocket fuel.", descAr: "تحفر بعثات ناسا في الفوهات المظلمة لاستخراج الجليد المائي وتوفير الأكسجين ووقود الصواريخ." },
+        { photo: NASA_IMAGES.moonShelter, color: 0xf59e0b, x: 8, z: 7, titleEn: "Regolith Radiation Storm Shelter", titleAr: "ملجأ الحماية من الإشعاع", descEn: "With no magnetic field on the Moon, crews shelter behind thick regolith and water walls during NASA DONKI solar flare alerts.", descAr: "لعدم وجود مجال مغناطيسي على القمر، يحتمي الطاقم خلف جدران التربة والمياه أثناء العواصف الشمسية." }
+      ],
+      mars: [
+        { photo: NASA_IMAGES.marsHab, color: 0xf8fafc, x: -7, z: -6, titleEn: "3D-Printed Martian Habitat (CHAPEA)", titleAr: "مسكن المريخ المطبوع ثلاثي الأبعاد", descEn: "NASA's Mars Dune Alpha tests 3D-printed habitats made from Martian soil to withstand extreme cold and thin pressure.", descAr: "تختبر ناسا مساكن مطبوعة من تربة المريخ لتحمل البرودة الشديدة والضغط الجوي المنخفض." },
+        { photo: NASA_IMAGES.marsMoxie, color: 0x10b981, x: 8, z: -6, titleEn: "MOXIE Oxygen Generator", titleAr: "مولد الأكسجين المريخي (MOXIE)", descEn: "Proven on NASA's Perseverance rover, MOXIE converts Mars's 95% CO₂ atmosphere directly into pure breathable oxygen.", descAr: "يحوّل جهاز MOXIE من ناسا غلاف المريخ المكون من ثاني أكسيد الكربون إلى أكسجين نقي للتنفس." },
+        { photo: NASA_IMAGES.marsPower, color: 0x3b82f6, x: -7, z: 7, titleEn: "Kilopower Fission Power System", titleAr: "مفاعل كيلوباور النووي المدمج", descEn: "Because Martian dust storms block sunlight for weeks, NASA developed Kilopower fission units for steady 24/7 electricity.", descAr: "لأن عواصف المريخ الترابية تحجب الشمس لأسابيع، طورت ناسا وحدات كيلوباور لتوفير طاقة مستمرة." },
+        { photo: NASA_IMAGES.marsVeggie, color: 0x22c55e, x: 8, z: 7, titleEn: "Hydroponic Veggie Bioreactor", titleAr: "الصوبة الزراعية المائية (NASA Veggie)", descEn: "Martian soil contains toxic perchlorates, so NASA grows crops hydroponically with LEDs and recycled water.", descAr: "تحتوي تربة المريخ على أملاح سامة، لذا تزرع ناسا النباتات مائياً بإضاءة LED ومياه معاد تدويرها." }
+      ]
+    };
+
+    const challengesData = {
+      moon: [
+        { visual: 'radiation', badgeEn: "CHALLENGE 1/3 • NASA DONKI ALERT", badgeAr: "التحدي ١/٣ • تنبيه إشعاعي", titleEn: "X-Class Solar Particle Event Inbound!", titleAr: "عاصفة إشعاعية شمسية قادمة!", descEn: "NASA DONKI detects an intense solar flare arriving in 15 minutes. Every choice has a cost:", descAr: "رصدت ناسا انفجاراً شمسياً قوياً سيصل خلال 15 دقيقة. كل قرار له ثمن:",
+          choices: [
+            { labelEn: "Seal crew in Regolith Shelter & power down heaters", labelAr: "إغلاق ملجأ التربة وإيقاف السخانات", costEn: "Cost: -20% Power | Protects crew", costAr: "التكلفة: -20% طاقة | يحمي الطاقم", delta: { oxygen: -5, power: -20, integrity: 0 }, conseqVis: 'shieldSuccess', resultEn: "Regolith absorbed 98% of solar protons, though heaters drained backup batteries.", resultAr: "امتصت تربة القمر 98% من الإشعاع، لكن إيقاف السخانات استهلك جزءاً من البطاريات." },
+            { labelEn: "Stay outside to finish lunar rock collection", labelAr: "البقاء بالخارج لإكمال جمع العينات", costEn: "Cost: -35% Integrity & -25% Oxygen", costAr: "التكلفة: -35% سلامة و -25% أكسجين", delta: { oxygen: -25, power: -10, integrity: -35 }, conseqVis: 'hullDamage', resultEn: "Unshielded radiation damaged suit electronics and caused an airlock leak!", resultAr: "أتلف الإشعاع إلكترونيات البدلة وتسبب في تسرب بغرفة الضغط!" }
+          ]
+        },
+        { visual: 'night', badgeEn: "CHALLENGE 2/3 • LUNAR SHADOW", badgeAr: "التحدي ٢/٣ • ظل الفوهة", titleEn: "Temperature Plunges to -133°C!", titleAr: "الحرارة تهبط إلى -133° مئوية!", descEn: "A crater shadow covers your Solar Array while extreme cold threatens oxygen pipes.", descAr: "غطى ظل الفوهة برج الطاقة الشمسية ويهدد البرد بتجمد أنابيب الأكسجين.",
+          choices: [
+            { labelEn: "Reroute battery power to O₂ pipe heaters", labelAr: "توجيه طاقة البطاريات لتدفئة أنابيب الأكسجين", costEn: "Cost: -15% Power | Prevents rupture", costAr: "التكلفة: -15% طاقة | يمنع التجمد", delta: { oxygen: -5, power: -15, integrity: 0 }, conseqVis: 'thermalFixed', resultEn: "Keeping ECLSS oxygen lines warm prevented ice blockages until sunlight returned.", resultAr: "تدفئة أنابيب الأكسجين منعت تجمدها حتى عودة ضوء الشمس." },
+            { labelEn: "Burn emergency O₂ fuel cells for electricity", labelAr: "استهلاك خلايا وقود الأكسجين للكهرباء", costEn: "Cost: -25% Oxygen | +10% Power", costAr: "التكلفة: -25% أكسجين | +10% طاقة", delta: { oxygen: -25, power: 10, integrity: 0 }, conseqVis: 'oxygenDrain', resultEn: "Power stabilized, though burning reserve oxygen lowered breathable air.", resultAr: "استقرت الطاقة لكن استهلاك الأكسجين الاحتياطي قلل الهواء المتاح." }
+          ]
+        },
+        { visual: 'drill', badgeEn: "CHALLENGE 3/3 • LUNAR DUST", badgeAr: "التحدي ٣/٣ • غبار القمر الحاد", titleEn: "Sharp Lunar Regolith Clogs Airlock!", titleAr: "غبار القمر الحاد يسد غرفة الضغط!", descEn: "Razor-sharp lunar glass dust clings electrostatically to airlock seals.", descAr: "غبار القمر الزجاجي الحاد يلتصق كهربائياً بأختام باب غرفة الضغط.",
+          choices: [
+            { labelEn: "Run electrostatic dust-clearing cycle", labelAr: "تشغيل دورة إزالة الغبار الكهروستاتيكية", costEn: "Cost: -15% Power & -10% Oxygen", costAr: "التكلفة: -15% طاقة و -10% أكسجين", delta: { oxygen: -10, power: -15, integrity: 5 }, conseqVis: 'shieldSuccess', resultEn: "Electrostatic cleaning cleared the glass dust and restored full seal integrity.", resultAr: "أزال التنظيف الكهروستاتيكي الغبار واستعاد إحكام غرفة الضغط." },
+            { labelEn: "Force the airlock hatch closed without cleaning", labelAr: "إغلاق الباب بالقوة دون تنظيف", costEn: "Cost: -30% Integrity & -20% Oxygen", costAr: "التكلفة: -30% سلامة و -20% أكسجين", delta: { oxygen: -20, power: 0, integrity: -30 }, conseqVis: 'hullDamage', resultEn: "Sharp regolith scratched the O-rings, causing a continuous pressure leak!", resultAr: "خدش الغبار الحاد الحلقات المطاطية وتسبب في تسرب مستمر!" }
+          ]
+        }
+      ],
+      mars: [
+        { visual: 'duststorm', badgeEn: "CHALLENGE 1/3 • DUST STORM", badgeAr: "التحدي ١/٣ • عاصفة ترابية", titleEn: "Global Dust Storm Blocks 85% Sunlight!", titleAr: "عاصفة ترابية تحجب 85% من الشمس!", descEn: "Iron-oxide dust coats solar panels across Jezero Crater and cuts visibility.", descAr: "يغطي غبار أكسيد الحديد الألواح الشمسية في فوهة جيزيرو ويحجب الرؤية.",
+          choices: [
+            { labelEn: "Switch to Kilopower fission & stay indoors", labelAr: "التحويل لمفاعل كيلوباور والبقاء بالداخل", costEn: "Cost: -15% Power & -10% Oxygen", costAr: "التكلفة: -15% طاقة و -10% أكسجين", delta: { oxygen: -10, power: -15, integrity: 0 }, conseqVis: 'thermalFixed', resultEn: "Kilopower kept life support running steadily through the dark storm.", resultAr: "حافظ مفاعل كيلوباور على عمل أنظمة الحياة بثبات طوال العاصفة." },
+            { labelEn: "Walk outside in storm to brush solar panels", labelAr: "الخروج أثناء العاصفة لتنظيف الألواح", costEn: "Cost: -30% Integrity & -20% Oxygen", costAr: "التكلفة: -30% سلامة و -20% أكسجين", delta: { oxygen: -20, power: -10, integrity: -30 }, conseqVis: 'hullDamage', resultEn: "Static-charged dust clogged your suit joints during the whiteout!", resultAr: "تراكم الغبار المشحون على مفاصل بدلتك أثناء انعدام الرؤية!" }
+          ]
+        },
+        { visual: 'freeze', badgeEn: "CHALLENGE 2/3 • MOXIE FILTER", badgeAr: "التحدي ٢/٣ • مرشح الأكسجين", titleEn: "CO₂ Filter Jammed on MOXIE Unit!", titleAr: "انسداد مرشح جهاز MOXIE!", descEn: "Fine Martian dust clogged the HEPA intake filter, halting O₂ production.", descAr: "سد الغبار المريخي مرشح الهواء مما أوقف إنتاج الأكسجين.",
+          choices: [
+            { labelEn: "Back-flush HEPA filter with reserve air", labelAr: "تنظيف المرشح عكسياً بالهواء المضغوط", costEn: "Cost: -15% Oxygen & -10% Power", costAr: "التكلفة: -15% أكسجين و -10% طاقة", delta: { oxygen: -15, power: -10, integrity: 0 }, conseqVis: 'shieldSuccess', resultEn: "Filter cleared! MOXIE resumed splitting Martian CO₂ into oxygen.", resultAr: "تم تنظيف المرشح واستأنف جهاز MOXIE إنتاج الأكسجين!" },
+            { labelEn: "Bypass filter to force airflow", labelAr: "تجاوز المرشح لإبقاء تدفق الهواء", costEn: "Cost: -35% Integrity (toxic dust)", costAr: "التكلفة: -35% سلامة (غبار سام)", delta: { oxygen: -5, power: -5, integrity: -35 }, conseqVis: 'hullDamage', resultEn: "Toxic perchlorates entered the compressor and damaged electrolysis cells!", resultAr: "دخلت أملاح البيركلورات السامة وأتلفت خلايا التحليل الكهربائي!" }
+          ]
+        },
+        { visual: 'radiation', badgeEn: "CHALLENGE 3/3 • COSMIC RAYS", badgeAr: "التحدي ٣/٣ • الأشعة الكونية", titleEn: "Sub-Zero Night (-95°C) + Radiation Spike!", titleAr: "ليلة (-95° مئوية) مع أشعة كونية!", descEn: "Mars's thin atmosphere loses heat rapidly while cosmic rays hit the roof.", descAr: "يفقد غلاف المريخ الرقيق الحرارة بسرعة بينما تضرب الأشعة الكونية السقف.",
+          choices: [
+            { labelEn: "Pump water into roof bladders & thermal loop", labelAr: "ضخ المياه في خزانات السقف وتفعيل التدفئة", costEn: "Cost: -20% Power | Blocks radiation", costAr: "التكلفة: -20% طاقة | يحجب الإشعاع", delta: { oxygen: -5, power: -20, integrity: 5 }, conseqVis: 'shieldSuccess', resultEn: "Hydrogen-rich water walls shielded your crew from cosmic rays!", resultAr: "حمت جدران المياه طاقمك من الأشعة الكونية وحافظت على الدفء!" },
+            { labelEn: "Turn off thermal & water pumps to save power", labelAr: "إيقاف مضخات التدفئة والمياه", costEn: "Cost: -25% Integrity & -20% Oxygen", costAr: "التكلفة: -25% سلامة و -20% أكسجين", delta: { oxygen: -20, power: 0, integrity: -25 }, conseqVis: 'hullDamage', resultEn: "Extreme cold froze habitat valves and cracked the secondary pressure seal.", resultAr: "أدت البرودة الشديدة لتجمد الصمامات وتشقق ختم الضغط." }
+          ]
+        }
+      ]
+    };
+
+    /* LIVE ANIMATED VISUALIZER FOR CHALLENGES & CONSEQUENCES */
+    let visAnimId = null;
+    function startHazardVisualizer(type) {
+      if (visAnimId) cancelAnimationFrame(visAnimId);
+      const canvas = document.getElementById('hazardVisCanvas');
+      const ctx = canvas.getContext('2d');
+      let t = 0;
+      function draw() {
+        visAnimId = requestAnimationFrame(draw);
+        t += 0.05;
+        ctx.fillStyle = type === 'duststorm' ? '#2c1108' : type === 'night' ? '#040814' : '#0b1120';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Habitat Dome Silhouette
+        ctx.fillStyle = '#334155';
+        ctx.beginPath(); ctx.arc(185, 105, 42, Math.PI, 0); ctx.fill();
+        ctx.fillRect(143, 105, 84, 10);
+
+        if (type === 'radiation') {
+          // Solar flare beams hitting dome
+          ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+          ctx.lineWidth = 2.5;
+          for (let i = 0; i < 12; i++) {
+            const x = ((i * 35 + t * 45) % 370);
+            const y = ((i * 19 + t * 65) % 115);
+            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 16, y + 22); ctx.stroke();
+          }
+        } else if (type === 'duststorm') {
+          // Swirling orange Martian dust waves
+          for (let i = 0; i < 18; i++) {
+            const x = ((i * 28 + t * 90) % 400) - 20;
+            const y = 15 + (i * 17) % 90 + Math.sin(t + i) * 5;
+            ctx.fillStyle = 'rgba(249, 115, 22, 0.45)';
+            ctx.beginPath(); ctx.ellipse(x, y, 24, 6, 0, 0, Math.PI * 2); ctx.fill();
+          }
+        } else if (type === 'night') {
+          // Frost crystals & -133C pulse
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(185, 105, 46 + Math.sin(t * 3) * 3, Math.PI, 0); ctx.stroke();
+          ctx.fillStyle = '#7dd3fc'; ctx.font = 'bold 14px Orbitron, sans-serif';
+          ctx.fillText('-133°C FREEZE', 245, 34);
+        } else {
+          // Clogged airlock / filter warning pulse
+          ctx.fillStyle = Math.sin(t * 6) > 0 ? '#ef4444' : '#f59e0b';
+          ctx.beginPath(); ctx.arc(185, 78, 8, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      draw();
+    }
+
+    function renderConsequenceVisual(type) {
+      const canvas = document.getElementById('consequenceVisCanvas');
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#090e1a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Base dome
+      ctx.fillStyle = '#475569';
+      ctx.beginPath(); ctx.arc(200, 110, 46, Math.PI, 0); ctx.fill();
+
+      if (type === 'shieldSuccess') {
+        // Glowing green/cyan protective energy dome deflecting hazard
+        ctx.strokeStyle = '#34d399'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(200, 110, 56, Math.PI, 0); ctx.stroke();
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.16)';
+        ctx.beginPath(); ctx.arc(200, 110, 56, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = '#34d399'; ctx.font = 'bold 14px Montserrat, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('SHIELDING & LIFE SUPPORT STABILIZED', 200, 26);
+      } else if (type === 'thermalFixed') {
+        // Warm glowing orange thermal pipes
+        ctx.strokeStyle = '#fb923c'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(110, 108); ctx.lineTo(290, 108); ctx.stroke();
+        ctx.fillStyle = '#fdba74'; ctx.font = 'bold 14px Montserrat, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('THERMAL & POWER GRID ROUTED', 200, 26);
+      } else {
+        // Red hull breach / oxygen leak plume
+        ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(190, 75); ctx.lineTo(212, 92); ctx.moveTo(212, 75); ctx.lineTo(190, 92); ctx.stroke();
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+        ctx.beginPath(); ctx.arc(225, 62, 18, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f87171'; ctx.font = 'bold 14px Montserrat, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('PRESSURE LEAK & HARDWARE DAMAGE', 200, 26);
+      }
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen-view').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    document.getElementById('enterMenuBtn').addEventListener('click', () => document.getElementById('welcomeModal').classList.add('hidden'));
+    document.getElementById('chatToggleBtn').addEventListener('click', () => document.getElementById('chatBox').classList.toggle('hidden'));
+    document.getElementById('homeBtn').addEventListener('click', () => { stop3D(); document.getElementById('cadetBadgePill').style.display = 'none'; showScreen('mainMenuView'); });
+
+    const moonBg = document.getElementById('moon-bg'), marsBg = document.getElementById('mars-bg'), hoverHint = document.getElementById('hoverHint');
+    document.getElementById('lunarBtn').addEventListener('mouseenter', () => { moonBg.classList.add('active'); marsBg.classList.remove('active'); hoverHint.textContent = translations[currentLang].hoverMoon; });
+    document.getElementById('lunarBtn').addEventListener('mouseleave', () => { moonBg.classList.remove('active'); hoverHint.textContent = translations[currentLang].hoverDefault; });
+    document.getElementById('marsBtn').addEventListener('mouseenter', () => { marsBg.classList.add('active'); moonBg.classList.remove('active'); hoverHint.textContent = translations[currentLang].hoverMars; });
+    document.getElementById('marsBtn').addEventListener('mouseleave', () => { marsBg.classList.remove('active'); hoverHint.textContent = translations[currentLang].hoverDefault; });
+
+    document.getElementById('lunarBtn').addEventListener('click', () => { selectedDestination = 'moon'; document.getElementById('prepDestinationTitle').textContent = translations[currentLang].prepMoonTitle; showScreen('suitPrepView'); });
+    document.getElementById('marsBtn').addEventListener('click', () => { selectedDestination = 'mars'; document.getElementById('prepDestinationTitle').textContent = translations[currentLang].prepMarsTitle; showScreen('suitPrepView'); });
+    document.getElementById('backToMenuBtn').addEventListener('click', () => showScreen('mainMenuView'));
+
+    document.querySelectorAll('.suit-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.suit-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedSuit = card.getAttribute('data-suit');
+      });
+    });
+
+    document.getElementById('confirmLaunchBtn').addEventListener('click', () => {
+      astronautName = document.getElementById('astronautNameInput').value.trim() || (currentLang === 'ar' ? 'رائد الفضاء' : 'Cadet');
+      document.getElementById('hudCadetName').textContent = astronautName;
+      document.getElementById('cadetBadgePill').style.display = 'flex';
+      stats = { oxygen: selectedSuit === 'axemu' ? 115 : 100, power: 100, integrity: selectedSuit === 'z2' ? 120 : 100 };
+      currentChallengeIdx = 0; decisionHistory = [];
+      updateHUD(); showScreen('gameplayView'); init3D(selectedDestination); loadChallenge(0);
+    });
+
+    let scene, camera, renderer, animId, avatarGroup, leftLeg, rightLeg, hazardGroup, baseMeshes = [];
+    let avatarPos = new THREE.Vector3(0, 0, 2), avatarVelY = 0, isGrounded = true, keys = {}, hoveredStation = null;
+    const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    function stop3D() { if (animId) cancelAnimationFrame(animId); if (visAnimId) cancelAnimationFrame(visAnimId); document.getElementById('threeContainer').innerHTML = ''; }
+
+    function init3D(dest) {
+      stop3D();
+      const container = document.getElementById('threeContainer'), isMoon = dest === 'moon';
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(isMoon ? 0x05070e : 0x5c2718);
+      scene.fog = new THREE.FogExp2(isMoon ? 0x05070e : 0x7c341e, isMoon ? 0.012 : 0.018);
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      container.appendChild(renderer.domElement);
+
+      scene.add(new THREE.AmbientLight(isMoon ? 0x94a3b8 : 0xfdba74, 0.8));
+      const dl = new THREE.DirectionalLight(0xffffff, 1.1); dl.position.set(18, 28, 15); scene.add(dl);
+
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ color: isMoon ? 0x6b7280 : 0xb84a27, roughness: 0.9 }));
+      ground.rotation.x = -Math.PI / 2; scene.add(ground);
+      scene.add(new THREE.GridHelper(80, 40, isMoon ? 0x9ca3af : 0xd97706, isMoon ? 0x4b5563 : 0x9a3412));
+
+      baseMeshes = [];
+      outpostModulesData[dest].forEach((mod, idx) => {
+        const g = new THREE.Group(); g.position.set(mod.x, 0, mod.z);
+        const mesh = new THREE.Mesh(
+          idx === 0 ? new THREE.SphereGeometry(2.3, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2) : new THREE.CylinderGeometry(1.7, 1.7, 2.4, 16),
+          new THREE.MeshStandardMaterial({ color: mod.color, roughness: 0.35 })
+        );
+        if (idx !== 0) mesh.position.y = 1.2;
+        mesh.userData = { moduleInfo: mod }; g.add(mesh); baseMeshes.push(mesh);
+        const ring = new THREE.Mesh(new THREE.RingGeometry(2.4, 2.7, 24), new THREE.MeshBasicMaterial({ color: mod.color, side: THREE.DoubleSide }));
+        ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; g.add(ring);
+        scene.add(g);
+      });
+
+      avatarGroup = new THREE.Group(); avatarPos.set(0, 0, 2);
+      const sCol = selectedSuit === 'axemu' ? 0xf8fafc : selectedSuit === 'z2' ? 0x334155 : 0xea580c;
+      const vCol = selectedSuit === 'axemu' ? 0xfbbf24 : selectedSuit === 'z2' ? 0x38bdf8 : 0x0f172a;
+      const sMat = new THREE.MeshStandardMaterial({ color: sCol }), vMat = new THREE.MeshStandardMaterial({ color: vCol, metalness: 0.8, roughness: 0.1 });
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.2, 0.6), sMat); torso.position.y = 1.6;
+      const head = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.75, 16), sMat); head.position.y = 2.62;
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.36, 0.2), vMat); visor.position.set(0, 2.64, 0.4);
+      leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.48, 1, 0.5), sMat); leftLeg.position.set(-0.28, 0.5, 0);
+      rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.48, 1, 0.5), sMat); rightLeg.position.set(0.28, 0.5, 0);
+      const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.1, 0.45), sMat); leftArm.position.set(-0.82, 1.6, 0);
+      const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.1, 0.45), sMat); rightArm.position.set(0.82, 1.6, 0);
+      avatarGroup.add(torso, head, visor, leftLeg, rightLeg, leftArm, rightArm);
+      scene.add(avatarGroup);
+
+      hazardGroup = new THREE.Group(); scene.add(hazardGroup);
+
+      renderer.domElement.addEventListener('pointermove', e => {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1; mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const hits = raycaster.intersectObjects(baseMeshes);
+        hoveredStation = hits.length > 0 ? hits[0].object.userData.moduleInfo : null;
+        if (hoveredStation) showStationCard(hoveredStation);
+      });
+
+      let wt = 0;
+      const grav = isMoon ? -0.008 : -0.016, jPow = selectedSuit === 'orion' ? 0.34 : 0.26, spd = selectedSuit === 'orion' ? 0.16 : 0.12;
+      function animate() {
+        animId = requestAnimationFrame(animate);
+        let dx = 0, dz = 0;
+        if (keys['KeyW'] || keys['ArrowUp']) dz -= 1; if (keys['KeyS'] || keys['ArrowDown']) dz += 1;
+        if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1; if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+        if (dx || dz) {
+          const l = Math.hypot(dx, dz); dx /= l; dz /= l;
+          avatarPos.x = Math.max(-28, Math.min(28, avatarPos.x + dx * spd));
+          avatarPos.z = Math.max(-28, Math.min(28, avatarPos.z + dz * spd));
+          avatarGroup.rotation.y = Math.atan2(dx, dz);
+          wt += 0.18; leftLeg.rotation.x = Math.sin(wt) * 0.6; rightLeg.rotation.x = -Math.sin(wt) * 0.6;
+        } else { leftLeg.rotation.x = 0; rightLeg.rotation.x = 0; }
+        if (keys['Space'] && isGrounded) { avatarVelY = jPow; isGrounded = false; }
+        avatarPos.y += avatarVelY;
+        if (avatarPos.y > 0) avatarVelY += grav; else { avatarPos.y = 0; avatarVelY = 0; isGrounded = true; }
+        avatarGroup.position.copy(avatarPos);
+        if (hazardGroup) hazardGroup.rotation.y += 0.01;
+
+        if (!hoveredStation) {
+          const near = outpostModulesData[dest].find(m => Math.hypot(avatarPos.x - m.x, avatarPos.z - m.z) < 4.2);
+          if (near) showStationCard(near); else document.getElementById('stationInfoCard').classList.remove('visible');
+        }
+        camera.position.lerp(new THREE.Vector3(avatarPos.x, avatarPos.y + 7.5, avatarPos.z + 12.5), 0.1);
+        camera.lookAt(avatarPos.x, avatarPos.y + 1.8, avatarPos.z);
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function showStationCard(mod) {
+      document.getElementById('stationTitle').textContent = currentLang === 'ar' ? mod.titleAr : mod.titleEn;
+      document.getElementById('stationBody').textContent = currentLang === 'ar' ? mod.descAr : mod.descEn;
+      bindRealImage(document.getElementById('stationRealPhoto'), mod.photo, mod.titleEn, '#1e293b', '#0f172a');
+      document.getElementById('stationInfoCard').classList.add('visible');
+    }
+
+    function updateHUD() {
+      stats.oxygen = Math.max(0, Math.min(120, stats.oxygen));
+      stats.power = Math.max(0, Math.min(120, stats.power));
+      stats.integrity = Math.max(0, Math.min(120, stats.integrity));
+      document.getElementById('valOxygen').textContent = stats.oxygen + '%';
+      document.getElementById('valPower').textContent = stats.power + '%';
+      document.getElementById('valIntegrity').textContent = stats.integrity + '%';
+      document.getElementById('valGravity').textContent = selectedDestination === 'moon' ? '1.62 m/s²' : '3.72 m/s²';
+      document.getElementById('valProgress').textContent = Math.min(currentChallengeIdx + 1, 3) + ' / 3';
+    }
+
+    function loadChallenge(idx) {
+      const list = challengesData[selectedDestination];
+      if (idx >= list.length) { finishMission(); return; }
+      const ch = list[idx];
+      startHazardVisualizer(ch.visual);
+
+      // Update 3D environment atmosphere & hazard particles
+      if (hazardGroup && scene) {
+        while (hazardGroup.children.length) hazardGroup.remove(hazardGroup.children[0]);
+        const geo = new THREE.BufferGeometry(), pos = new Float32Array(300);
+        for (let i = 0; i < 300; i += 3) { pos[i] = (Math.random() - 0.5) * 34; pos[i + 1] = Math.random() * 12; pos[i + 2] = (Math.random() - 0.5) * 34; }
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        const pCol = ch.visual === 'radiation' ? 0xef4444 : ch.visual === 'night' ? 0x38bdf8 : 0xf97316;
+        if (ch.visual === 'radiation') scene.fog.color.setHex(0x3f0d0d);
+        if (ch.visual === 'duststorm') { scene.fog.color.setHex(0x9a3412); scene.fog.density = 0.032; }
+        hazardGroup.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: pCol, size: 0.48 })));
+      }
+
+      document.getElementById('challengeAlertBadge').textContent = currentLang === 'ar' ? ch.badgeAr : ch.badgeEn;
+      document.getElementById('challengeTitle').textContent = currentLang === 'ar' ? ch.titleAr : ch.titleEn;
+      document.getElementById('challengeDesc').textContent = currentLang === 'ar' ? ch.descAr : ch.descEn;
+      const dl = document.getElementById('decisionList'); dl.innerHTML = '';
+      ch.choices.forEach(c => {
+        const b = document.createElement('button'); b.className = 'decision-btn';
+        b.innerHTML = '<strong style="display:block;font-size:0.84rem;margin-bottom:2px;">' + (currentLang === 'ar' ? c.labelAr : c.labelEn) + '</strong><span style="font-size:0.74rem;color:#fbbf24;">' + (currentLang === 'ar' ? c.costAr : c.costEn) + '</span>';
+        b.addEventListener('click', () => {
+          stats.oxygen += c.delta.oxygen; stats.power += c.delta.power; stats.integrity += c.delta.integrity; updateHUD();
+          document.getElementById('challengePanel').classList.remove('visible'); activeChallengeOpen = false;
+          renderConsequenceVisual(c.conseqVis);
+          const res = currentLang === 'ar' ? c.resultAr : c.resultEn;
+          decisionHistory.push({ q: currentLang === 'ar' ? ch.titleAr : ch.titleEn, a: currentLang === 'ar' ? c.labelAr : c.labelEn, r: res });
+          document.getElementById('consequenceText').textContent = res;
+          document.getElementById('consequenceDelta').textContent = 'O₂: ' + c.delta.oxygen + '% | Power: ' + c.delta.power + '% | Integrity: ' + c.delta.integrity + '%';
+          document.getElementById('consequenceCard').classList.add('visible');
+        });
+        dl.appendChild(b);
+      });
+      document.getElementById('challengePanel').classList.add('visible'); activeChallengeOpen = true;
+    }
+
+    document.getElementById('toggleChallengeBtn').addEventListener('click', () => { activeChallengeOpen = !activeChallengeOpen; document.getElementById('challengePanel').classList.toggle('visible', activeChallengeOpen); });
+    document.getElementById('nextChallengeBtn').addEventListener('click', () => {
+      document.getElementById('consequenceCard').classList.remove('visible');
+      if (stats.oxygen <= 0 || stats.power <= 0 || stats.integrity <= 0) { finishMission(); return; }
+      currentChallengeIdx++; updateHUD(); loadChallenge(currentChallengeIdx);
+    });
+
+    function finishMission() {
+      stop3D();
+      const ok = stats.oxygen > 15 && stats.power > 15 && stats.integrity > 15;
+      document.getElementById('outcomeCard').classList.toggle('failed', !ok);
+      const t = document.getElementById('outcomeTitle');
+      t.textContent = ok ? translations[currentLang].missionSuccess : translations[currentLang].missionFailed;
+      t.style.color = ok ? '#34d399' : '#ef4444';
+      document.getElementById('outcomeSummary').textContent = ok
+        ? (currentLang === 'ar' ? `أحسنت يا ${astronautName}! نجحت المهمة (الأكسجين: ${stats.oxygen}%، الطاقة: ${stats.power}%، السلامة: ${stats.integrity}%).` : `Great job, ${astronautName}! Mission Succeeded (O₂: ${stats.oxygen}%, Power: ${stats.power}%, Integrity: ${stats.integrity}%).`)
+        : (currentLang === 'ar' ? `للأسف يا ${astronautName}، انخفضت أنظمة الحياة لمستوى حرج. أعد المحاولة!` : `Critical life-support failure, ${astronautName}. Review NASA safety protocols and try again!`);
+      const log = document.getElementById('outcomeLog'); log.innerHTML = '';
+      decisionHistory.forEach((h, i) => { log.innerHTML += '<div><strong>' + (i + 1) + '. ' + h.q + '</strong><br/>&rarr; ' + h.a + '<br/><span style="color:#93c5fd;">' + h.r + '</span></div>'; });
+      showScreen('outcomeView');
+    }
+
+    document.getElementById('playAgainBtn').addEventListener('click', () => { document.getElementById('cadetBadgePill').style.display = 'none'; showScreen('mainMenuView'); });
+
+    document.getElementById('langToggleBtn').addEventListener('click', () => {
+      currentLang = currentLang === 'en' ? 'ar' : 'en';
+      document.documentElement.lang = currentLang;
+      document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+      document.body.classList.toggle('rtl', currentLang === 'ar');
+      const dict = translations[currentLang];
+      document.getElementById('langLabel').textContent = dict.langToggle;
+      document.getElementById('chatInput').placeholder = dict.chatPlaceholder;
+      document.querySelectorAll('[data-i18n]').forEach(el => { const k = el.getAttribute('data-i18n'); if (dict[k]) el.textContent = dict[k]; });
+      if (document.getElementById('gameplayView').classList.contains('active')) loadChallenge(currentChallengeIdx);
+    });
+  </script>
+</body>
+</html>
